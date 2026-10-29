@@ -2,8 +2,9 @@ const {app,BrowserWindow,ipcMain,dialog,safeStorage,nativeTheme} = require('elec
 const {join} = require('path');
 const fs = require('fs/promises');
 const {autoUpdater} = require('electron-updater');
+const {paperPrompt} = require('./paper-prompt.cjs');
 let win; let queue = Promise.resolve(); let nextRequest = 0;
-const defaults = () => ({schools:[],lists:{class:['6','7','8','9','10','11','12'],subject:[],fullMarks:['20','30','40','50','80','100'],time:['1 Hour','1.5 Hours','2 Hours','3 Hours'],examTitle:['Unit Test','Half Yearly','Annual Exam','Pre-Board']},appearance:{theme:'system',accent:'#5264a6',uiSize:'M',hindiSize:18,density:'comfortable',sidebar:true},lastSelection:{},model:'auto'});
+const defaults = () => ({schools:[],lists:{class:['6','7','8','9','10','11','12'],subject:[],fullMarks:['20','30','40','50','80','100'],time:['1 Hour','1.5 Hours','2 Hours','3 Hours'],examTitle:['Unit Test','Half Yearly','Annual Exam','Pre-Board']},appearance:{theme:'system',accent:'#5264a6',uiSize:'M',hindiSize:18,density:'comfortable',sidebar:true},lastSelection:{language:'hi'},model:'auto'});
 const dataFile = (name)=>join(app.getPath('userData'),name);
 async function readJson(name,fallback){try{return JSON.parse(await fs.readFile(dataFile(name),'utf8'))}catch{return fallback}}
 async function writeJson(name,data){const file=dataFile(name);await fs.mkdir(app.getPath('userData'),{recursive:true});const temp=file+'.tmp';await fs.writeFile(temp,JSON.stringify(data,null,2),'utf8');await fs.rename(temp,file)}
@@ -18,21 +19,21 @@ ipcMain.handle('history:save',async(_e,h)=>{if(!Array.isArray(h))throw Error('In
 ipcMain.handle('key:status',async()=>Boolean(await getKey()));
 ipcMain.handle('key:set',async(_e,key)=>{if(typeof key!=='string'||key.length>512)throw Error('Invalid key');if(!key.trim()){await fs.rm(dataFile('key.bin'),{force:true});return false}if(!safeStorage.isEncryptionAvailable())throw Error('Secure storage is unavailable. Set up your OS keyring first.');await fs.mkdir(app.getPath('userData'),{recursive:true});await fs.writeFile(dataFile('key.bin'),safeStorage.encryptString(key.trim()));return true});
 async function gemini(model,key,parts){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),120000);try{const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{parts}],generationConfig:{temperature:0.1}}),signal:controller.signal});const body=await response.json();if(!response.ok){const err=new Error(body.error?.message||`Gemini HTTP ${response.status}`);err.status=response.status;throw err}const text=body.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('\n').trim();if(!text)throw Error('No text returned. The image may have been blocked or unreadable.');return text}finally{clearTimeout(timer)}}
-async function runTranscription(images,details,choice){const key=await getKey();if(!key)throw Error('Add API key in Settings');if(!Array.isArray(images)||!images.length||images.length>30)throw Error('Select 1–30 images');if(images.some(i=>!/^data:image\/(jpeg|png|webp);base64,/.test(i)||i.length>14000000))throw Error('Invalid or oversized image');const header=Object.entries(details||{}).filter(([,value])=>typeof value==='string'&&value.trim()).map(([label,value])=>`${label}: ${value}`).join('\n');const prompt=`You are an expert Hindi transcriber for school exam papers. Read ALL attached images in order as ONE paper. Determine autonomously whether the pages are a question paper, answer sheet, or mixed, and format appropriately. Transcribe exactly what is written, in clean Unicode Devanagari. Do not translate, solve questions, invent missing content, or correct the teacher's content. Preserve headings, question numbers, sub-parts, marks, MCQ options and tables (use aligned plain text for tables). If a word is illegible write [अस्पष्ट]. Use these header details only if supplied, and omit absent fields; do not duplicate an existing header:\n${header}\nOutput ONLY the complete formatted paper text, no commentary.`;
+async function runTranscription(images,details,choice,language){const key=await getKey();if(!key)throw Error('Add API key in Settings');if(!Array.isArray(images)||!images.length||images.length>30)throw Error('Select 1–30 images');if(images.some(i=>!/^data:image\/(jpeg|png|webp);base64,/.test(i)||i.length>14000000))throw Error('Invalid or oversized image');const prompt=paperPrompt(details,language);
 const parts=[{text:prompt},...images.map(i=>{const [,mime,data]=i.match(/^data:(image\/(?:jpeg|png|webp));base64,(.*)$/s)||[];return {inline_data:{mime_type:mime,data}}})];
 const chain=choice==='auto'?models:[choice];if(chain.some(m=>!models.includes(m)))throw Error('Invalid model');
 for(let m=0;m<chain.length;m++){for(let attempt=0;attempt<3;attempt++){const model=chain[m];const wait=Math.max(0,nextRequest-Date.now());if(wait)await new Promise(r=>setTimeout(r,wait));nextRequest=Date.now()+6500;win?.webContents.send('transcribe:status',`${model}${attempt?' · retrying after rate limit':''}`);try{return await gemini(model,key,parts)}catch(e){if(![429,503].includes(e.status)&&!(/quota|resource exhausted/i.test(e.message)))throw e;win?.webContents.send('transcribe:status',`${model} · ${e.message.slice(0,100)} · retrying`);if(attempt<2)await new Promise(r=>setTimeout(r,Math.min(2000*2**attempt,8000)))}}}throw Error('All available models are busy or out of quota. Try again later.')}
-ipcMain.handle('transcribe',(_e,images,details,model)=>{const task=queue.then(()=>runTranscription(images,details,model));queue=task.catch(()=>{});return task});
+ipcMain.handle('transcribe',(_e,images,details,model,language)=>{const task=queue.then(()=>runTranscription(images,details,model,language));queue=task.catch(()=>{});return task});
 ipcMain.handle('key:test',()=>{const task=queue.then(async()=>{const key=await getKey();if(!key)throw Error('Save a key first');const wait=Math.max(0,nextRequest-Date.now());if(wait)await new Promise(r=>setTimeout(r,wait));nextRequest=Date.now()+6500;await gemini('gemini-2.5-flash-lite',key,[{text:'Reply with OK only.'}]);return true});queue=task.catch(()=>{});return task});
-ipcMain.handle('file:save',async(_e,name,data,kind)=>{
-  if(!['txt','docx'].includes(kind)||typeof data!=='string')throw Error('Invalid file');
+ipcMain.handle('file:save',async(_e,name,data,kind,language)=>{
+  if(!['txt','docx'].includes(kind)||typeof data!=='string'||!['hi','en'].includes(language))throw Error('Invalid file');
   const safeName=String(name).replace(/[^\p{L}\p{N} _-]/gu,'').slice(0,70)||'Akshar';
   const {filePath,canceled}=await dialog.showSaveDialog(win,{defaultPath:`${safeName}.${kind}`,filters:[{name:kind.toUpperCase(),extensions:[kind]}]});
   if(canceled)return false;
   if(kind==='txt')await fs.writeFile(filePath,data,'utf8');
   else {
     const {Document,Paragraph,Packer,TextRun}=require('docx');
-    const children=data.split('\n').map(line=>new Paragraph({children:[new TextRun({text:line,font:'Noto Sans Devanagari',size:24})]}));
+    const children=data.split('\n').map(line=>new Paragraph({children:[new TextRun({text:line,font:language==='en'?'Calibri':'Noto Sans Devanagari',size:24})]}));
     const doc=new Document({sections:[{children}]});
     await fs.writeFile(filePath,await Packer.toBuffer(doc));
   }
