@@ -1,6 +1,6 @@
 {
   "name": "akshar",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "private": true,
   "type": "module",
   "description": "Hindi exam paper transcription desktop app",
@@ -12,12 +12,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test src/converter.test.js",
+    "test": "node --test src/converter.test.js electron/paper-prompt.test.cjs electron/paper-header.test.mjs",
     "icons": "node scripts/icons.mjs",
     "package": "npm run build && electron-builder"
   },
   "dependencies": {
+    "@fontsource/fraunces": "^5.3.0",
     "@fontsource/inter": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.3.0",
     "@fontsource/noto-sans-devanagari": "^5.2.8",
     "docx": "^9.5.1",
     "electron-updater": "^6.8.11",
