@@ -1,0 +1,96 @@
+{
+  "name": "akshar",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Hindi exam paper transcription desktop app",
+  "main": "electron/main.cjs",
+  "productName": "Akshar",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "node --test src/converter.test.js",
+    "icons": "node scripts/icons.mjs",
+    "package": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/noto-sans-devanagari": "^5.2.8",
+    "docx": "^9.5.1",
+    "electron-updater": "^6.8.11",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.4.20",
+    "electron": "^45.1.0",
+    "electron-builder": "^26.0.12",
+    "opentype.js": "^1.3.4",
+    "png-to-ico": "^3.0.1",
+    "pngjs": "^7.0.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.3.5"
+  },
+  "build": {
+    "appId": "in.akshar.desktop",
+    "productName": "Akshar",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.cjs"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Sagar-79-Singh",
+      "repo": "Akshar",
+      "releaseType": "release"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "build/icon.png",
+      "category": "Office"
+    }
+  },
+  "author": {
+    "name": "Sagar-79-Singh",
+    "email": "Sagar-79-Singh@users.noreply.github.com"
+  }
+}
