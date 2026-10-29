@@ -55,7 +55,8 @@
     "publish": {
       "provider": "github",
       "owner": "Sagar-79-Singh",
-      "repo": "Akshar"
+      "repo": "Akshar",
+      "releaseType": "release"
     },
     "win": {
       "target": "nsis",
@@ -87,5 +88,9 @@
       "icon": "build/icon.png",
       "category": "Office"
     }
+  },
+  "author": {
+    "name": "Sagar-79-Singh",
+    "email": "Sagar-79-Singh@users.noreply.github.com"
   }
 }
